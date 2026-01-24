@@ -82,6 +82,13 @@ Export goals:
 - consistent folder structure per ticker and per run date
 - “summary” markdown files that combine narrative + key metrics + top news
 
+### Digest helper scripts (repo-level)
+
+These helpers support turning digest link CSVs into readable docs:
+
+- `scripts/fetch_links.py` → generate Markdown digest scaffold with extracted text
+- `scripts/market_digest_to_html.py` → convert Markdown to styled HTML
+
 ---
 
 ## 5) CLI Scope & Commands
