@@ -34,14 +34,44 @@ def digest():
 @digest.command()
 @click.option("--tickers", required=True, help="Comma-separated tickers (e.g. AAPL,MSFT)")
 @click.option("--out", default="./exports", help="Export root directory")
-def weekly(tickers, out):
+@click.option("--fetch-missing", is_flag=True, help="Fetch missing cache data before digest")
+def weekly(tickers, out, fetch_missing):
     """
     Generate a weekly digest for the given tickers.
     Reads from existing cache.
     """
     ticker_list = [t.strip().upper() for t in tickers.split(',')]
     out_dir = Path(out) / "digests"
-    
+
+    if fetch_missing:
+        for ticker in ticker_list:
+            key_fund = f"yahoo:fundamentals:{ticker}"
+            if not cache.get(key_fund):
+                data = yahoo.fetch_fundamentals(ticker)
+                cache.put(key_fund, data.model_dump(mode="json", by_alias=True))
+
+            key_price = f"yahoo:prices:{ticker}:5d:1d"
+            if not cache.get(key_price):
+                bars = yahoo.fetch_prices(ticker, "5d", "1d")
+                cache.put(key_price, [b.model_dump(mode="json") for b in bars])
+
+            key_news = f"yahoo:news:{ticker}:latest"
+            if not cache.get(key_news):
+                items = yahoo.fetch_news(ticker)
+                cache.put(key_news, [i.model_dump(mode="json") for i in items])
+
+            key_finnhub = f"finnhub:news:{ticker}:latest"
+            if not cache.get(key_finnhub):
+                try:
+                    end_d = date.today()
+                    start_d = end_d - timedelta(days=7)
+                    items = finnhub.fetch_company_news(ticker, start_d, end_d)
+                    cache.put(key_finnhub, [i.model_dump(mode="json") for i in items])
+                except FinFetchError:
+                    pass
+                except Exception:
+                    pass
+
     report_path = weekly_digest.generate_weekly_digest(ticker_list, out_dir)
     
     _print_json({
@@ -185,6 +215,32 @@ def news(ticker, provider, force):
     items = fetch_func()
     as_dict = [i.model_dump(mode='json') for i in items]
     
+    cache.put(key, as_dict)
+    _print_json(as_dict, cached=False)
+
+@fetch.command("market-news")
+@click.option("--category", default="general", help="Finnhub market news category (default: general)")
+@click.option("--min-id", default=0, type=int, help="Finnhub minId for pagination")
+@click.option("--force", is_flag=True, help="Bypass cache")
+def market_news(category, min_id, force):
+    """Fetch broad market news from Finnhub."""
+    category = (category or "").strip()
+    if not category:
+        raise click.BadParameter("Category must be a non-empty string.")
+    if min_id < 0:
+        raise click.BadParameter("min-id must be >= 0.")
+
+    key = f"finnhub:market_news:{category}:{min_id}"
+
+    if not force:
+        cached = cache.get(key)
+        if cached:
+            _print_json(cached, cached=True)
+            return
+
+    items = finnhub.fetch_market_news(category=category, min_id=min_id)
+    as_dict = [i.model_dump(mode="json") for i in items]
+
     cache.put(key, as_dict)
     _print_json(as_dict, cached=False)
 

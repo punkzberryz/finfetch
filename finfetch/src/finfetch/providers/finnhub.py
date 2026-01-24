@@ -79,3 +79,56 @@ def fetch_company_news(ticker: str, start: datetime.date, end: datetime.date) ->
     except Exception as e:
         logger.error(f"Finnhub processing failed: {e}")
         raise ProviderError(f"Finnhub error: {e}")
+
+def fetch_market_news(category: str = "general", min_id: int = 0) -> List[NewsItem]:
+    """
+    Fetch broad market news from Finnhub.
+    Reference: https://github.com/Finnhub-Stock-API/finnhub-python
+    """
+    api_key = get_finnhub_key()
+    if not api_key:
+        raise ProviderError(
+            "FINNHUB_API_KEY is missing or invalid. "
+            "Please add it to your .env file."
+        )
+
+    url = f"{BASE_URL}/news"
+    params = {
+        "category": category,
+        "minId": min_id,
+        "token": api_key
+    }
+
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        items = []
+        for item in data:
+            ts = item.get("datetime", 0)
+            pub_date = datetime.datetime.fromtimestamp(ts)
+            news_id = str(item.get("id", ""))
+            if not news_id:
+                import hashlib
+                s = f"{item.get('headline')}-{ts}"
+                news_id = hashlib.md5(s.encode()).hexdigest()
+
+            items.append(NewsItem(
+                id=news_id,
+                title=item.get("headline", ""),
+                url=item.get("url", ""),
+                published_at=pub_date,
+                source=item.get("source", "Finnhub"),
+                summary=item.get("summary"),
+                tickers=[],
+                provider="finnhub"
+            ))
+
+        return items
+    except requests.RequestException as e:
+        logger.error(f"Finnhub market news request failed: {e}")
+        raise ProviderError(f"Finnhub market news failed: {e}")
+    except Exception as e:
+        logger.error(f"Finnhub market news processing failed: {e}")
+        raise ProviderError(f"Finnhub market news error: {e}")

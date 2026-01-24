@@ -131,6 +131,7 @@ Export goals:
 ### v1 add-on commands
 
 - `finfetch fetch news --provider finnhub ...`
+- `finfetch fetch market-news --category general` (broad market news via Finnhub)
 - `finfetch enrich news --sentiment ...`
 - `finfetch digest market weekly` (broader market condition)
 
@@ -221,6 +222,7 @@ Example:
     - ...
   - `digests/`
     - `weekly_2026-W04.md`
+    - `weekly_2026-W04_news_links.csv`
 
 Rules:
 
@@ -259,6 +261,8 @@ M4 — Finnhub Add-on [DONE]
 
 ## 10) Open Questions (defer; do not block v0)
 
-- Which “fundamental” metrics are most important for your blog template?
-- What is the target blog structure for weekly posts?
-- How should sentiment be measured (headline count, source weighting, finnhub sentiment, etc.)?
+Resolved preferences:
+
+- Fundamentals to emphasize: Core + Growth, with debt/equity included.
+- Weekly post structure: Template A (market snapshot → sector rotation → top themes → headlines per ticker → fundamentals snapshot per ticker → risks/catalysts).
+- Sentiment: Finnhub sentiment when available; fallback to weighted method if not.
