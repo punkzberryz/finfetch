@@ -1,6 +1,8 @@
 import yfinance as yf
 import logging
-from typing import List, Dict, Any
+import re
+import urllib.request
+from typing import List, Dict, Any, Optional
 from ..errors import ProviderError
 from ..models.fundamentals import FundamentalsSnapshot
 from ..models.prices import PriceBar
@@ -8,6 +10,31 @@ from ..models.news import NewsItem
 from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
+
+_FINNHUB_NEWS_RE = re.compile(r"^https?://finnhub\\.io/api/news\\?id=")
+
+def _extract_canonical_url(html_text: str) -> Optional[str]:
+    for pat in (
+        r'rel=\"canonical\" href=\"([^\"]+)\"',
+        r'property=\"og:url\" content=\"([^\"]+)\"',
+        r'name=\"og:url\" content=\"([^\"]+)\"'
+    ):
+        m = re.search(pat, html_text)
+        if m:
+            return m.group(1).strip()
+    return None
+
+def _resolve_finnhub_link(url: str) -> str:
+    if not url or not _FINNHUB_NEWS_RE.match(url):
+        return url
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+        resolved = _extract_canonical_url(html)
+        return resolved or url
+    except Exception:
+        return url
 
 def fetch_fundamentals(ticker: str) -> FundamentalsSnapshot:
     """Fetch fundamentals from Yahoo Finance."""
@@ -86,10 +113,13 @@ def fetch_news(ticker: str) -> List[NewsItem]:
                 uuid = hashlib.md5(unique_string.encode('utf-8')).hexdigest()
             pub_date = datetime.fromtimestamp(pub_ts)
             
+            url = item.get('link', '')
+            url = _resolve_finnhub_link(url)
+
             items.append(NewsItem(
                 id=uuid,
                 title=item.get('title', ''),
-                url=item.get('link', ''),
+                url=url,
                 published_at=pub_date,
                 source=item.get('publisher', 'Yahoo'),
                 summary=None, # Yahoo news standard payload usually has titles/links
