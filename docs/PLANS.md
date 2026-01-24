@@ -250,10 +250,10 @@ M3 — Weekly Digest [DONE]
 
 - [x] Implement `digest weekly` to generate blog-ready markdown summary
 
-M4 — Finnhub Add-on
+M4 — Finnhub Add-on [DONE]
 
-- Add Finnhub provider and enrichment options (config/env-based)
-- Optional sentiment features and broader market digest
+- [x] Add Finnhub provider and enrichment options (config/env-based)
+- [x] Optional sentiment features and broader market digest
 
 ---
 

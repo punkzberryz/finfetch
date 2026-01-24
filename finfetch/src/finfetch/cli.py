@@ -7,7 +7,8 @@ from .logging import configure_logging
 from .models.fundamentals import FundamentalsSnapshot
 from .models.prices import PriceBar
 from .models.news import NewsItem
-from .providers import yahoo
+from .providers import yahoo, finnhub
+from datetime import date, timedelta
 from .cache.sqlite import SQLiteCache
 from .export.paths import get_export_dir
 from .export import json_export, csv_export, md_export
@@ -155,21 +156,33 @@ def prices(ticker, period, interval, force):
 
 @fetch.command()
 @click.option("--ticker", required=True, help="Stock ticker symbol")
+@click.option("--provider", default="yahoo", type=click.Choice(["yahoo", "finnhub"]), help="Data provider")
 @click.option("--force", is_flag=True, help="Bypass cache")
-def news(ticker, force):
+def news(ticker, provider, force):
     """Fetch recent news."""
-    # News is volatile; simplistic unique key doesn't work well for "latest"
-    # We might want to cache with a short TTL or just by day.
-    # For M1, we'll cache 'latest' but user should use --force to refresh.
-    key = f"yahoo:news:{ticker}:latest"
     
+    if provider == "yahoo":
+        key = f"yahoo:news:{ticker}:latest"
+        fetch_func = lambda: yahoo.fetch_news(ticker)
+        
+    elif provider == "finnhub":
+        # Strategy for Finnhub "latest": fetch last 7 days?
+        # PLANS.md said "news_{days}d.json" but we generalized to "latest" for cache key simpler.
+        # Let's define "latest" as last 7 days for Finnhub too.
+        end_d = date.today()
+        start_d = end_d - timedelta(days=7)
+        # We include dates in key to be correct if we changed ranges?
+        # Actually for 'latest' concept, we overwrite.
+        key = f"finnhub:news:{ticker}:latest"
+        fetch_func = lambda: finnhub.fetch_company_news(ticker, start_d, end_d)
+
     if not force:
         cached = cache.get(key)
         if cached:
             _print_json(cached, cached=True)
             return
 
-    items = yahoo.fetch_news(ticker)
+    items = fetch_func()
     as_dict = [i.model_dump(mode='json') for i in items]
     
     cache.put(key, as_dict)

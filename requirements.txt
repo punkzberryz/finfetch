@@ -1,3 +1,4 @@
 click
 yfinance
 pydantic
+requests
