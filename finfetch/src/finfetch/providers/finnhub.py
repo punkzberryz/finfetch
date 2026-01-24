@@ -1,7 +1,9 @@
 import requests
 import logging
 import datetime
-from typing import List
+import re
+import urllib.request
+from typing import List, Optional
 from ..errors import ProviderError
 from ..models.news import NewsItem
 from ..config import get_finnhub_key
@@ -9,6 +11,31 @@ from ..config import get_finnhub_key
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://finnhub.io/api/v1"
+
+_FINNHUB_NEWS_RE = re.compile(r"^https?://finnhub\\.io/api/news\\?id=")
+
+def _extract_canonical_url(html_text: str) -> Optional[str]:
+    for pat in (
+        r'rel=\"canonical\" href=\"([^\"]+)\"',
+        r'property=\"og:url\" content=\"([^\"]+)\"',
+        r'name=\"og:url\" content=\"([^\"]+)\"'
+    ):
+        m = re.search(pat, html_text)
+        if m:
+            return m.group(1).strip()
+    return None
+
+def _resolve_finnhub_link(url: str) -> str:
+    if not url or not _FINNHUB_NEWS_RE.match(url):
+        return url
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+        resolved = _extract_canonical_url(html)
+        return resolved or url
+    except Exception:
+        return url
 
 def fetch_company_news(ticker: str, start: datetime.date, end: datetime.date) -> List[NewsItem]:
     """
@@ -60,10 +87,13 @@ def fetch_company_news(ticker: str, start: datetime.date, end: datetime.date) ->
                 s = f"{item.get('headline')}-{ts}"
                 news_id = hashlib.md5(s.encode()).hexdigest()
 
+            url = item.get('url', '')
+            url = _resolve_finnhub_link(url)
+
             items.append(NewsItem(
                 id=news_id,
                 title=item.get('headline', ''),
-                url=item.get('url', ''),
+                url=url,
                 published_at=pub_date,
                 source=item.get('source', 'Finnhub'),
                 summary=item.get('summary'),
