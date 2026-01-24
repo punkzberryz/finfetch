@@ -95,7 +95,9 @@ class TestWeeklyDigest(unittest.TestCase):
             report_path = weekly.generate_weekly_digest(["AAA"], out_dir)
             content = Path(report_path).read_text()
             csv_path = Path(str(report_path).replace(".md", "_news_links.csv"))
+            prompt_path = Path(str(report_path).replace(".md", "_prompt.txt"))
             self.assertTrue(csv_path.exists())
+            self.assertTrue(prompt_path.exists())
             with open(csv_path, newline="") as f:
                 rows = list(csv.DictReader(f))
 

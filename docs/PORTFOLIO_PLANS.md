@@ -42,6 +42,7 @@ Portfolio digest output (new):
 
 - Markdown: `exports/portfolio/weekly_{YYYY}-W{WW}.md`
 - Links CSV: `exports/portfolio/weekly_{YYYY}-W{WW}_news_links.csv`
+- Prompt text: `exports/portfolio/weekly_{YYYY}-W{WW}_prompt.txt`
 - Optional HTML: `exports/portfolio/weekly_{YYYY}-W{WW}.html`
 
 ---

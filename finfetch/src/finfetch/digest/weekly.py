@@ -144,6 +144,37 @@ def _extract_themes(news: List[Dict[str, Any]], limit: int = 6) -> List[Tuple[st
     items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
     return items[:limit]
 
+def _build_prompt(title: str, rows: List[Dict[str, str]]) -> str:
+    today = datetime.date.today().isoformat()
+    lines = []
+    lines.append("You are a financial research assistant. Visit each link below, extract the key facts, and write a market digest report in Markdown.")
+    lines.append("")
+    lines.append("Requirements:")
+    lines.append("- Sections: TL;DR (3 bullets), Key Takeaways (1-2 bullets), In-Depth (120-200 words per source)")
+    lines.append("- Include citations as inline links for every non-trivial claim")
+    lines.append("- Keep tone neutral and factual")
+    lines.append("- Output Markdown only")
+    lines.append("")
+    lines.append(f"# {title} ({today})")
+    lines.append("")
+    lines.append("## Sources")
+    for idx, row in enumerate(rows, start=1):
+        url = row.get("url", "")
+        label = row.get("title") or url
+        meta = []
+        if row.get("source"):
+            meta.append(row["source"])
+        if row.get("ticker"):
+            meta.append(row["ticker"])
+        if row.get("published_at"):
+            meta.append(row["published_at"])
+        meta_str = " | ".join(meta)
+        if meta_str:
+            lines.append(f"{idx}. {label} ({meta_str}) — {url}")
+        else:
+            lines.append(f"{idx}. {label} — {url}")
+    return "\n".join(lines)
+
 def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional[str] = None, include_market_news: bool = True) -> Path:
     """
     Generate a weekly digest markdown file for a list of tickers.
@@ -156,6 +187,7 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional
     filename = f"weekly_{year}-W{week:02d}.md"
     out_path = out_dir / filename
     csv_path = out_dir / f"weekly_{year}-W{week:02d}_news_links.csv"
+    prompt_path = out_dir / f"weekly_{year}-W{week:02d}_prompt.txt"
     
     tickers_sorted = sorted([t.upper() for t in tickers])
     today_str = today.isoformat()
@@ -371,5 +403,11 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional
         writer.writeheader()
         for row in csv_rows:
             writer.writerow(row)
+
+    # Export prompt text alongside digest outputs
+    prompt_title = (title or f"Weekly Market Digest: {year}-W{week:02d}").replace("# ", "")
+    prompt = _build_prompt(prompt_title, csv_rows)
+    with open(prompt_path, "w") as f:
+        f.write(prompt)
         
     return out_path

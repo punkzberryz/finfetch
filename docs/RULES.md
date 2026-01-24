@@ -139,9 +139,11 @@ Structure:
   - `digests/`
     - `weekly_{YYYY}-W{WW}.md`
     - `weekly_{YYYY}-W{WW}_news_links.csv`
+    - `weekly_{YYYY}-W{WW}_prompt.txt`
   - `portfolio/`
     - `weekly_{YYYY}-W{WW}.md`
     - `weekly_{YYYY}-W{WW}_news_links.csv`
+    - `weekly_{YYYY}-W{WW}_prompt.txt`
 
 Rules:
 
