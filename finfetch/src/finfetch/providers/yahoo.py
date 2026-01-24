@@ -11,7 +11,7 @@ from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
-_FINNHUB_NEWS_RE = re.compile(r"^https?://finnhub\\.io/api/news\\?id=")
+_FINNHUB_NEWS_RE = re.compile(r"^https?://finnhub\.io/api/news\?id=")
 
 def _extract_canonical_url(html_text: str) -> Optional[str]:
     for pat in (
@@ -42,7 +42,21 @@ def _resolve_finnhub_link(url: str) -> str:
             resolved = _extract_canonical_url(resp.text)
             return resolved or url
     except Exception:
+        pass
+    # Headless fallback for finnhub redirect pages
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            resolved = page.url
+            browser.close()
+            if resolved and resolved != url:
+                return resolved
+    except Exception:
         return url
+    return url
 
 def fetch_fundamentals(ticker: str) -> FundamentalsSnapshot:
     """Fetch fundamentals from Yahoo Finance."""
