@@ -144,7 +144,7 @@ def _extract_themes(news: List[Dict[str, Any]], limit: int = 6) -> List[Tuple[st
     items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
     return items[:limit]
 
-def generate_weekly_digest(tickers: List[str], out_dir: Path) -> Path:
+def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional[str] = None, include_market_news: bool = True) -> Path:
     """
     Generate a weekly digest markdown file for a list of tickers.
     """
@@ -195,7 +195,7 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path) -> Path:
         }
 
     lines = []
-    lines.append(f"# Weekly Market Digest: {year}-W{week:02d}")
+    lines.append(title or f"# Weekly Market Digest: {year}-W{week:02d}")
     lines.append(f"**Date**: {today_str}")
     lines.append("")
 
@@ -245,28 +245,29 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path) -> Path:
         lines.append("- No headline themes available.")
     lines.append("")
 
-    # Market News (broad, from Finnhub cache)
-    lines.append("## Market News")
-    market_news = cache.get("finnhub:market_news:general:0") or []
-    market_items = _normalize_news(market_news)
-    if market_items:
-        for item in market_items[:5]:
-            title = item.get("title", "No Title")
-            source = item.get("source", "Unknown")
-            url = item.get("url", "#")
-            lines.append(f"- {source}: [{title}]({url})")
-            csv_rows.append({
-                "scope": "market",
-                "ticker": "",
-                "source": source,
-                "title": title,
-                "url": url,
-                "published_at": (item.get("published_at") or "").isoformat() if isinstance(item.get("published_at"), datetime.datetime) else "",
-                "provider": item.get("provider", "")
-            })
-    else:
-        lines.append("- No cached market news.")
-    lines.append("")
+    if include_market_news:
+        # Market News (broad, from Finnhub cache)
+        lines.append("## Market News")
+        market_news = cache.get("finnhub:market_news:general:0") or []
+        market_items = _normalize_news(market_news)
+        if market_items:
+            for item in market_items[:5]:
+                title = item.get("title", "No Title")
+                source = item.get("source", "Unknown")
+                url = item.get("url", "#")
+                lines.append(f"- {source}: [{title}]({url})")
+                csv_rows.append({
+                    "scope": "market",
+                    "ticker": "",
+                    "source": source,
+                    "title": title,
+                    "url": url,
+                    "published_at": (item.get("published_at") or "").isoformat() if isinstance(item.get("published_at"), datetime.datetime) else "",
+                    "provider": item.get("provider", "")
+                })
+        else:
+            lines.append("- No cached market news.")
+        lines.append("")
 
     # Ticker Highlights
     lines.append("## Ticker Highlights")

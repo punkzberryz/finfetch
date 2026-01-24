@@ -229,6 +229,9 @@ Example:
     - ...
   - `digests/`
     - `weekly_2026-W04.md`
+  - `portfolio/`
+    - `weekly_2026-W04.md`
+    - `weekly_2026-W04_news_links.csv`
     - `weekly_2026-W04_news_links.csv`
 
 Rules:

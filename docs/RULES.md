@@ -139,6 +139,9 @@ Structure:
   - `digests/`
     - `weekly_{YYYY}-W{WW}.md`
     - `weekly_{YYYY}-W{WW}_news_links.csv`
+  - `portfolio/`
+    - `weekly_{YYYY}-W{WW}.md`
+    - `weekly_{YYYY}-W{WW}_news_links.csv`
 
 Rules:
 

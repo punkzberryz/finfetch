@@ -13,6 +13,7 @@ from .cache.sqlite import SQLiteCache
 from .export.paths import get_export_dir
 from .export import json_export, csv_export, md_export
 from .digest import weekly as weekly_digest
+from .portfolio import load_portfolio
 from pathlib import Path
 
 # Configure logging at module level
@@ -32,16 +33,30 @@ def digest():
     pass
 
 @digest.command()
-@click.option("--tickers", required=True, help="Comma-separated tickers (e.g. AAPL,MSFT)")
+@click.option("--tickers", required=False, help="Comma-separated tickers (e.g. AAPL,MSFT)")
 @click.option("--out", default="./exports", help="Export root directory")
 @click.option("--fetch-missing", is_flag=True, help="Fetch missing cache data before digest")
-def weekly(tickers, out, fetch_missing):
+@click.option("--portfolio", is_flag=True, help="Use tickers from portfolio.yaml")
+def weekly(tickers, out, fetch_missing, portfolio):
     """
     Generate a weekly digest for the given tickers.
     Reads from existing cache.
     """
-    ticker_list = [t.strip().upper() for t in tickers.split(',')]
-    out_dir = Path(out) / "digests"
+    if portfolio:
+        portfolio_data = load_portfolio()
+        ticker_list = portfolio_data["tickers"]
+        title = f"# Portfolio Digest: {portfolio_data['name']} ({date.today().isocalendar()[0]}-W{date.today().isocalendar()[1]:02d})"
+        out_dir = Path(out) / "portfolio"
+        include_market_news = False
+    else:
+        if not tickers:
+            raise click.BadParameter("tickers is required unless --portfolio is set.")
+        ticker_list = [t.strip().upper() for t in tickers.split(',') if t.strip()]
+        if not ticker_list:
+            raise click.BadParameter("tickers must include at least one symbol.")
+        title = None
+        out_dir = Path(out) / "digests"
+        include_market_news = True
 
     if fetch_missing:
         for ticker in ticker_list:
@@ -72,7 +87,12 @@ def weekly(tickers, out, fetch_missing):
                 except Exception:
                     pass
 
-    report_path = weekly_digest.generate_weekly_digest(ticker_list, out_dir)
+    report_path = weekly_digest.generate_weekly_digest(
+        ticker_list,
+        out_dir,
+        title=title,
+        include_market_news=include_market_news
+    )
     
     _print_json({
         "digest_file": str(report_path),

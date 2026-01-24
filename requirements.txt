@@ -2,3 +2,4 @@ click
 yfinance
 pydantic
 requests
+pyyaml
