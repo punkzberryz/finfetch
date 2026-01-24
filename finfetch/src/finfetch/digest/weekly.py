@@ -158,8 +158,11 @@ def _build_prompt(title: str, rows: List[Dict[str, str]]) -> str:
     lines.append(f"# {title} ({today})")
     lines.append("")
     lines.append("## Sources")
-    for idx, row in enumerate(rows, start=1):
-        url = row.get("url", "")
+    idx = 1
+    for row in rows:
+        url = (row.get("url") or "").strip()
+        if not url:
+            continue
         label = row.get("title") or url
         meta = []
         if row.get("source"):
@@ -173,6 +176,7 @@ def _build_prompt(title: str, rows: List[Dict[str, str]]) -> str:
             lines.append(f"{idx}. {label} ({meta_str}) — {url}")
         else:
             lines.append(f"{idx}. {label} — {url}")
+        idx += 1
     return "\n".join(lines)
 
 def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional[str] = None, include_market_news: bool = True) -> Path:
