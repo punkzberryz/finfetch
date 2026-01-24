@@ -231,15 +231,15 @@ Rules:
 
 ## 9) Milestones
 
-M0 — Scaffolding
+M0 — Scaffolding [DONE]
 
-- CLI skeleton + rules enforced (JSON stdout, stderr logs)
-- SQLite cache module placeholder
+- [x] CLI skeleton + rules enforced (JSON stdout, stderr logs)
+- [x] SQLite cache module placeholder
 
-M1 — Yahoo Finance v0
+M1 — Yahoo Finance v0 [DONE]
 
-- Implement `fetch fundamentals`, `fetch prices`, `fetch news` using Yahoo library
-- Store normalized + raw data in SQLite
+- [x] Implement `fetch fundamentals`, `fetch prices`, `fetch news` using Yahoo library
+- [x] Store normalized + raw data in SQLite
 
 M2 — Export Pipeline
 
