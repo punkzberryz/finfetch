@@ -241,14 +241,14 @@ M1 — Yahoo Finance v0 [DONE]
 - [x] Implement `fetch fundamentals`, `fetch prices`, `fetch news` using Yahoo library
 - [x] Store normalized + raw data in SQLite
 
-M2 — Export Pipeline
+M2 — Export Pipeline [DONE]
 
-- Implement `export` to JSON/CSV/MD
-- Establish stable folder conventions
+- [x] Implement `export` to JSON/CSV/MD
+- [x] Establish stable folder conventions
 
-M3 — Weekly Digest
+M3 — Weekly Digest [DONE]
 
-- Implement `digest weekly` to generate blog-ready markdown summary
+- [x] Implement `digest weekly` to generate blog-ready markdown summary
 
 M4 — Finnhub Add-on
 

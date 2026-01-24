@@ -9,6 +9,10 @@ from .models.prices import PriceBar
 from .models.news import NewsItem
 from .providers import yahoo
 from .cache.sqlite import SQLiteCache
+from .export.paths import get_export_dir
+from .export import json_export, csv_export, md_export
+from .digest import weekly as weekly_digest
+from pathlib import Path
 
 # Configure logging at module level
 configure_logging()
@@ -19,16 +23,92 @@ def cli():
     """finfetch: Financial data fetcher."""
     pass
 
+# ... (omitted)
+
+@cli.group()
+def digest():
+    """Generate digests."""
+    pass
+
+@digest.command()
+@click.option("--tickers", required=True, help="Comma-separated tickers (e.g. AAPL,MSFT)")
+@click.option("--out", default="./exports", help="Export root directory")
+def weekly(tickers, out):
+    """
+    Generate a weekly digest for the given tickers.
+    Reads from existing cache.
+    """
+    ticker_list = [t.strip().upper() for t in tickers.split(',')]
+    out_dir = Path(out) / "digests"
+    
+    report_path = weekly_digest.generate_weekly_digest(ticker_list, out_dir)
+    
+    _print_json({
+        "digest_file": str(report_path),
+        "tickers": ticker_list
+    })
+
+
 @cli.command()
 def version():
     """Print version information."""
-    data = {"version": "0.2.0", "status": "M1 Yahoo"}
+    data = {"version": "0.3.0", "status": "M2 Export"}
     _print_json(data)
 
 @cli.group()
 def fetch():
     """Fetch data from providers."""
     pass
+
+@cli.command()
+@click.option("--ticker", required=True, help="Stock ticker symbol")
+@click.option("--out", default="./exports", help="Export root directory")
+def export(ticker, out):
+    """
+    Export cached data to JSON/CSV/MD.
+    
+    Tries to find cached data for:
+    - Fundamentals
+    - News (latest)
+    - Prices (1mo/1d, 5d/1d common periods for now, or just what's found if we scanned keys)
+    """
+    export_dir = get_export_dir(ticker, root=out)
+    results = []
+    
+    # 1. Fundamentals
+    key_fund = f"yahoo:fundamentals:{ticker}"
+    data_fund = cache.get(key_fund)
+    if data_fund:
+        json_export.export_json(data_fund, export_dir / "fundamentals.json")
+        csv_export.export_fundamentals_csv(data_fund, export_dir / "fundamentals.csv")
+        md_export.export_fundamentals_md(data_fund, export_dir / "fundamentals.md")
+        results.append("fundamentals")
+
+    # 2. News
+    key_news = f"yahoo:news:{ticker}:latest"
+    data_news = cache.get(key_news)
+    if data_news:
+        json_export.export_json(data_news, export_dir / "news_latest.json")
+        csv_export.export_news_csv(data_news, export_dir / "news_latest.csv")
+        md_export.export_news_md(data_news, export_dir / "news_latest.md")
+        results.append("news")
+        
+    # 3. Prices - Check common intervals (Hack for v0 until we have better key scanning)
+    price_configs = [("1mo", "1d"), ("5d", "1d"), ("1y", "1wk")]
+    for p, i in price_configs:
+        key_price = f"yahoo:prices:{ticker}:{p}:{i}"
+        data_price = cache.get(key_price)
+        if data_price:
+            fname = f"prices_{p}_{i}"
+            json_export.export_json(data_price, export_dir / f"{fname}.json")
+            csv_export.export_prices_csv(data_price, export_dir / f"{fname}.csv")
+            results.append(fname)
+            
+    _print_json({
+        "exported": results,
+        "directory": str(export_dir)
+    })
+
 
 @fetch.command()
 @click.option("--ticker", required=True, help="Stock ticker symbol")
