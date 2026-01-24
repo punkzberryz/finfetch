@@ -2,7 +2,6 @@ import requests
 import logging
 import datetime
 import re
-import urllib.request
 from typing import List, Optional
 from ..errors import ProviderError
 from ..models.news import NewsItem
@@ -29,11 +28,19 @@ def _resolve_finnhub_link(url: str) -> str:
     if not url or not _FINNHUB_NEWS_RE.match(url):
         return url
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
-        resolved = _extract_canonical_url(html)
-        return resolved or url
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            allow_redirects=False,
+            timeout=10
+        )
+        if resp.status_code in (301, 302, 303, 307, 308):
+            loc = resp.headers.get("Location")
+            if loc:
+                return loc
+        if resp.status_code == 200:
+            resolved = _extract_canonical_url(resp.text)
+            return resolved or url
     except Exception:
         return url
 
