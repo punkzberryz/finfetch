@@ -234,7 +234,7 @@ Example:
     - `weekly_2026-W04.md`
     - `weekly_2026-W04_news_links.csv`
     - `weekly_2026-W04_prompt.txt`
-    - `weekly_2026-W04_news_links.csv`
+    - `weekly_2026-W04.html`
 
 Rules:
 
@@ -278,3 +278,23 @@ Resolved preferences:
 - Fundamentals to emphasize: Core + Growth, with debt/equity included.
 - Weekly post structure: Template A (market snapshot → sector rotation → top themes → headlines per ticker → fundamentals snapshot per ticker → risks/catalysts).
 - Sentiment: Finnhub sentiment when available; fallback to weighted method if not.
+
+---
+
+## 11) Future Work (Proposed)
+
+1) Portfolio-specific headings
+   - Rename sections for portfolio digests (e.g., “Portfolio Snapshot” instead of “Market Snapshot”).
+
+2) Finnhub news robustness
+   - Add retries/backoff for Finnhub news.
+   - Log when Finnhub returns empty results.
+
+3) Fundamentals enrichment
+   - Optional Finnhub financials fallback when Yahoo lacks revenue/FCF metrics.
+
+4) HTML digest output
+   - Add CLI flag to auto-render HTML after digest (optional).
+
+5) Prompt customization
+   - Add flags for prompt length or sections (e.g., include “Risks/Catalysts”).
