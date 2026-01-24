@@ -1,0 +1,13 @@
+market:
+  name: "Market Digest"
+  tickers:
+    - NVDA
+    - MSFT
+    - AAPL
+    - GOOGL
+    - AMZN
+    - META
+    - AVGO
+    - TSLA
+    - PLTR
+    - AMD

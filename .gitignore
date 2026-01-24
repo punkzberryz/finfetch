@@ -3,6 +3,7 @@ __pycache__/
 .env
 .env.*
 portfolio.yaml
+market.yaml
 .venv/
 .venv
 exports/

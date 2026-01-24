@@ -14,6 +14,21 @@ See:
 - `finfetch fetch market-news --category general` (Finnhub broad market news)
 - `finfetch digest weekly --tickers AAPL,MSFT --out ./exports` (weekly digest)
 
+## Makefile Shortcuts
+
+```
+make digest-market
+make fetch-missing-market
+make digest-market
+make fetch-missing-market
+make digest-portfolio
+make fetch-missing-portfolio
+make html-market
+make html-portfolio
+```
+
+Market tickers for `make digest-market` come from `market.yaml` (see `market.example.yaml`).
+
 ## Digest Helpers
 
 These helpers live in `scripts/` and are used to turn digest link CSVs into a
