@@ -1,9 +1,12 @@
-.PHONY: digest-market
+.PHONY: digest-market fetch-financials export-ticker
 
-PYTHON ?= python
-PYTHONPATH ?= finfetch/src
-
-MARKET_TICKERS := $(shell $(PYTHON) scripts/market_tickers.py --path market.yaml)
+TICKER ?= AAPL
 
 digest-market:
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m finfetch digest weekly --tickers $(MARKET_TICKERS) --out ./exports
+	./bin/finfetch digest --type weekly --out ./exports
+
+fetch-financials:
+	./bin/finfetch fetch financials --ticker $(TICKER)
+
+export-ticker:
+	./bin/finfetch export --ticker $(TICKER) --out ./exports

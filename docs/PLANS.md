@@ -121,19 +121,33 @@ These helpers support turning digest link CSVs into readable docs:
    - Fetches recent news (Yahoo first)
    - Normalizes items and de-dupes by stable ID
 
-4. `finfetch export --ticker TICKER --out ./exports`
+4. `finfetch fetch financials --ticker TICKER`
+
+   - Fetches annual + quarterly income statement, balance sheet, and cashflow (Yahoo)
+   - Stores in SQLite cache
+
+5. `finfetch export --ticker TICKER --out ./exports`
 
    - Exports:
      - fundamentals.json / fundamentals.csv / fundamentals.md
      - prices.csv / prices.json (as needed)
      - news.json / news.csv / news.md
+     - financial statements CSVs (income/balance/cashflow, annual + quarterly)
 
-5. `finfetch digest weekly --tickers AAPL,CRDO --out ./exports`
-   - Produces a weekly markdown digest:
-     - top themes
-     - notable headlines per ticker
-     - basic fundamental snapshot (high level)
-     - (optional later) sentiment notes
+6. `finfetch digest --type weekly --out ./exports`
+   - High-level orchestration:
+     - loads tickers from `market.yaml` or `portfolio.yaml`
+     - fetches missing cache data
+     - generates the digest
+7. `finfetch digest --type daily --date 2026-01-25 --out ./exports`
+   - Daily market digest (tickers from `market.yaml`):
+     - top themes (last 24h news)
+     - notable headlines per ticker (last 24h)
+     - sentiment notes
+8. `finfetch fetch-digest weekly --tickers AAPL,CRDO --out ./exports`
+   - Cache-only weekly digest (no fetching)
+9. `finfetch fetch-digest daily --tickers AAPL,CRDO --date 2026-01-25 --out ./exports`
+   - Cache-only daily digest (no fetching)
 
 ### v1 add-on commands
 
@@ -222,6 +236,12 @@ Example:
     - `fundamentals.json`
     - `fundamentals.csv`
     - `fundamentals.md`
+    - `AAPL_income_statement_annual.csv`
+    - `AAPL_income_statement_quarterly.csv`
+    - `AAPL_balance_sheet_annual.csv`
+    - `AAPL_balance_sheet_quarterly.csv`
+    - `AAPL_cashflow_annual.csv`
+    - `AAPL_cashflow_quarterly.csv`
     - `prices_5y_1d.csv`
     - `news_7d.json`
     - `news_7d.md`
@@ -230,6 +250,8 @@ Example:
   - `digests/`
     - `weekly_2026-W04.md`
     - `weekly_2026-W04_prompt.txt`
+    - `daily_2026-01-25.md`
+    - `daily_2026-01-25_prompt.txt`
   - `portfolio/`
     - `weekly_2026-W04.md`
     - `weekly_2026-W04_news_links.csv`
@@ -260,9 +282,9 @@ M2 — Export Pipeline [DONE]
 - [x] Implement `export` to JSON/CSV/MD
 - [x] Establish stable folder conventions
 
-M3 — Weekly Digest [DONE]
+M3 — Digest (Weekly/Daily) [DONE]
 
-- [x] Implement `digest weekly` to generate blog-ready markdown summary
+- [x] Implement cache-only digest generators and a high-level orchestrator
 
 M4 — Finnhub Add-on [DONE]
 
@@ -275,8 +297,7 @@ M4 — Finnhub Add-on [DONE]
 
 Resolved preferences:
 
-- Fundamentals to emphasize: Core + Growth, with debt/equity included.
-- Weekly post structure: Template A (market snapshot → sector rotation → top themes → headlines per ticker → fundamentals snapshot per ticker → risks/catalysts).
+- Weekly post structure: Template A (market snapshot → sector rotation → top themes → headlines per ticker → risks/catalysts).
 - Sentiment: Finnhub sentiment when available; fallback to weighted method if not.
 
 ---

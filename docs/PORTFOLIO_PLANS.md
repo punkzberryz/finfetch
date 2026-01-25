@@ -56,9 +56,6 @@ Sections:
 4. Portfolio News (per ticker)
 5. Risks/Catalysts
 
-Fundamentals emphasis:
-- Core + Growth + Debt/Equity
-
 Sentiment:
 - Finnhub if available; fallback to weighted headline sentiment
 
@@ -69,7 +66,7 @@ Sentiment:
 1) Ensure cache is populated:
    - `fetch fundamentals`, `fetch prices (5d/1d)`, `fetch news`
 2) Generate portfolio digest from tickers in `portfolio.yaml`:
-   - `finfetch digest weekly --portfolio --out ./exports`
+   - `finfetch digest --type weekly --portfolio --out ./exports`
 3) Export Markdown + CSV
 4) Convert to HTML (optional) via `scripts/market_digest_to_html.py`
 

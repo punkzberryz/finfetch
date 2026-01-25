@@ -12,7 +12,9 @@ See:
 ## Notable Commands
 
 - `finfetch fetch market-news --category general` (Finnhub broad market news)
-- `finfetch digest weekly --tickers AAPL,MSFT --out ./exports` (weekly digest)
+- `./bin/finfetch fetch financials --ticker AAPL` (Yahoo annual + quarterly statements)
+- `./bin/finfetch digest --type weekly --out ./exports` (weekly digest from `market.yaml`)
+- `./bin/finfetch digest --type daily --date 2026-01-25 --out ./exports` (daily digest from `market.yaml`)
 
 ## Makefile
 

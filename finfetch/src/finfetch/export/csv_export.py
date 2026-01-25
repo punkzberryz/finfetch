@@ -47,3 +47,28 @@ def export_news_csv(data: List[Dict[str, Any]], path: Path):
         writer = csv.DictWriter(f, fieldnames=headers, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(data)
+
+
+def export_financials_csv(data: Dict[str, Any], out_dir: Path, ticker: str):
+    """Export financial statements to CSV files (annual/quarterly)."""
+    statements = [
+        ("income_statement", "income_statement"),
+        ("balance_sheet", "balance_sheet"),
+        ("cashflow", "cashflow"),
+    ]
+
+    for key, name in statements:
+        block = data.get(key, {})
+        if not isinstance(block, dict):
+            continue
+        for period in ("annual", "quarterly"):
+            rows = block.get(period, [])
+            if not rows:
+                continue
+            headers = list(rows[0].keys())
+            filename = f"{ticker}_{name}_{period}.csv"
+            path = out_dir / filename
+            with open(path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                writer.writerows(rows)

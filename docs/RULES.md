@@ -64,6 +64,7 @@ Rules:
 - Tickers MUST be normalized to uppercase internally.
 - Comma-separated lists MUST be supported where applicable.
 - Invalid input MUST fail fast with `ValidationError`.
+- High-level digest orchestration MUST load tickers from YAML (`market.yaml` or `portfolio.yaml`), not CLI arguments.
 
 ---
 
@@ -94,10 +95,21 @@ Rules:
 - Normalized records MAY be stored for faster export.
 - Cache invalidation SHOULD be TTL-based per data type.
 - The CLI MUST still function correctly if the cache is empty.
+- Financial statement normalization MUST be deterministic (stable columns, sparse rows dropped).
 
 ---
 
-## 6) Export Rules (Critical)
+## 6) Orchestration Commands (Digest)
+
+- High-level digest command MUST:
+  1) read tickers from YAML,
+  2) fetch only missing cache data,
+  3) call cache-only digest generation.
+- Cache-only digest commands (e.g., `fetch-digest`) MUST NOT fetch data.
+
+---
+
+## 7) Export Rules (Critical)
 
 Exports are designed to be consumed by:
 
@@ -120,7 +132,7 @@ Exports are designed to be consumed by:
 
 ---
 
-## 7) Export Folder Structure (Mandatory)
+## 8) Export Folder Structure (Mandatory)
 
 Default export root: `./exports`
 
@@ -131,6 +143,12 @@ Structure:
     - `fundamentals.json`
     - `fundamentals.csv`
     - `fundamentals.md`
+    - `{TICKER}_income_statement_annual.csv`
+    - `{TICKER}_income_statement_quarterly.csv`
+    - `{TICKER}_balance_sheet_annual.csv`
+    - `{TICKER}_balance_sheet_quarterly.csv`
+    - `{TICKER}_cashflow_annual.csv`
+    - `{TICKER}_cashflow_quarterly.csv`
     - `prices_{period}_{interval}.csv`
     - `prices_{period}_{interval}.json`
     - `news_{days}d.json`
@@ -140,6 +158,9 @@ Structure:
     - `weekly_{YYYY}-W{WW}.md`
     - `weekly_{YYYY}-W{WW}_news_links.csv`
     - `weekly_{YYYY}-W{WW}_prompt.txt`
+    - `daily_{YYYY}-MM-DD.md`
+    - `daily_{YYYY}-MM-DD_news_links.csv`
+    - `daily_{YYYY}-MM-DD_prompt.txt`
   - `portfolio/`
     - `weekly_{YYYY}-W{WW}.md`
     - `weekly_{YYYY}-W{WW}_news_links.csv`
@@ -156,7 +177,7 @@ Rules:
 
 ---
 
-## 8) Determinism & Reproducibility
+## 9) Determinism & Reproducibility
 
 - Sorting order MUST be explicit (e.g., date desc, source asc).
 - Stable IDs MUST be used for de-duplication.
@@ -164,7 +185,7 @@ Rules:
 
 ---
 
-## 9) Scope Restrictions (Hard Limits)
+## 10) Scope Restrictions (Hard Limits)
 
 finfetch MUST NOT:
 
@@ -181,7 +202,7 @@ finfetch IS:
 
 ---
 
-## 10) Testing Rules
+## 11) Testing Rules
 
 - Unit tests MUST NOT hit real external APIs.
 - Provider calls MUST be mocked.
@@ -192,7 +213,7 @@ finfetch IS:
 
 ---
 
-## 11) Changes & Versioning
+## 12) Changes & Versioning
 
 - Any breaking change to output shape or export structure MUST:
   1. Update `PLANS.md`

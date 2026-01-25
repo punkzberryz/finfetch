@@ -1,6 +1,7 @@
 import yfinance as yf
 import logging
 import re
+import pandas as pd
 import requests
 from typing import List, Dict, Any, Optional
 from ..errors import ProviderError
@@ -12,6 +13,11 @@ from datetime import datetime, date
 logger = logging.getLogger(__name__)
 
 _FINNHUB_NEWS_RE = re.compile(r"^https?://finnhub\.io/api/news\?id=")
+_SPARSE_COL_THRESHOLD = 0.8
+_FINANCIALS_KEY_MAP = {
+    "Operating Revenue": "Total Revenue",
+    "Selling General And Administrative": "Selling General And Administration",
+}
 
 def _extract_canonical_url(html_text: str) -> Optional[str]:
     for pat in (
@@ -152,3 +158,137 @@ def fetch_news(ticker: str) -> List[NewsItem]:
     except Exception as e:
         logger.error(f"Failed to fetch news for {ticker}: {e}")
         raise ProviderError(f"Yahoo news failed: {e}")
+
+
+def _df_to_records(df: Any) -> List[Dict[str, Any]]:
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    items: List[Dict[str, Any]] = []
+    cols = []
+    for c in df.columns:
+        dt = None
+        if hasattr(c, "to_pydatetime"):
+            try:
+                dt = c.to_pydatetime()
+            except Exception:
+                dt = None
+        elif isinstance(c, datetime):
+            dt = c
+        elif isinstance(c, date):
+            dt = datetime.combine(c, datetime.min.time())
+        else:
+            try:
+                parsed = pd.to_datetime(c, errors="coerce")
+                if not pd.isna(parsed):
+                    dt = parsed.to_pydatetime()
+            except Exception:
+                dt = None
+        label = dt.date().isoformat() if dt else str(c)
+        sort_key = dt or datetime.min
+        cols.append((sort_key, label, c))
+
+    cols.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+    for _, label, col in cols:
+        record: Dict[str, Any] = {"date": label}
+        series = df[col]
+        for idx, val in series.items():
+            key = str(idx)
+            if pd.isna(val):
+                record[key] = None
+            else:
+                try:
+                    record[key] = float(val)
+                except Exception:
+                    record[key] = val
+        items.append(record)
+
+    return items
+
+
+def _normalize_statement_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not records:
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    for rec in records:
+        out: Dict[str, Any] = {"date": rec.get("date")}
+        for key, val in rec.items():
+            if key == "date":
+                continue
+            canon = _FINANCIALS_KEY_MAP.get(key, key)
+            if canon in out and out[canon] is not None:
+                continue
+            out[canon] = val
+        normalized.append(out)
+
+    # Union of keys across all records (excluding date)
+    all_keys = set()
+    for rec in normalized:
+        all_keys.update(k for k in rec.keys() if k != "date")
+
+    # Drop sparse columns
+    keep_keys = set()
+    total = len(normalized)
+    for key in all_keys:
+        missing = sum(1 for rec in normalized if rec.get(key) is None)
+        if total == 0:
+            continue
+        if (missing / total) <= _SPARSE_COL_THRESHOLD:
+            keep_keys.add(key)
+
+    # Ensure consistent columns across records
+    final_records: List[Dict[str, Any]] = []
+    for rec in normalized:
+        row = {"date": rec.get("date")}
+        for key in keep_keys:
+            row[key] = rec.get(key)
+        final_records.append(row)
+
+    # Drop rows that are mostly missing (likely unreliable periods)
+    if keep_keys:
+        filtered: List[Dict[str, Any]] = []
+        total_keys = len(keep_keys)
+        for row in final_records:
+            missing = sum(1 for key in keep_keys if row.get(key) is None)
+            if (missing / total_keys) <= _SPARSE_COL_THRESHOLD:
+                filtered.append(row)
+        return filtered
+
+    return final_records
+
+
+def fetch_financials(ticker: str) -> Dict[str, Any]:
+    """Fetch annual and quarterly financial statements from Yahoo Finance."""
+    try:
+        t = yf.Ticker(ticker)
+
+        income_annual = _normalize_statement_records(_df_to_records(t.financials))
+        income_quarterly = _normalize_statement_records(_df_to_records(t.quarterly_financials))
+
+        balance_annual = _normalize_statement_records(_df_to_records(t.balance_sheet))
+        balance_quarterly = _normalize_statement_records(_df_to_records(t.quarterly_balance_sheet))
+
+        cash_annual = _normalize_statement_records(_df_to_records(t.cashflow))
+        cash_quarterly = _normalize_statement_records(_df_to_records(t.quarterly_cashflow))
+
+        return {
+            "symbol": ticker,
+            "provider": "yahoo",
+            "income_statement": {
+                "annual": income_annual,
+                "quarterly": income_quarterly,
+            },
+            "balance_sheet": {
+                "annual": balance_annual,
+                "quarterly": balance_quarterly,
+            },
+            "cashflow": {
+                "annual": cash_annual,
+                "quarterly": cash_quarterly,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch financials for {ticker}: {e}")
+        raise ProviderError(f"Yahoo financials failed: {e}")

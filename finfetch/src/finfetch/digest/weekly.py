@@ -144,8 +144,9 @@ def _extract_themes(news: List[Dict[str, Any]], limit: int = 6) -> List[Tuple[st
     items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
     return items[:limit]
 
-def _build_prompt(title: str, rows: List[Dict[str, str]]) -> str:
-    today = datetime.date.today().isoformat()
+def _build_prompt(title: str, rows: List[Dict[str, str]], *, digest_date: Optional[datetime.date] = None) -> str:
+    day = digest_date or datetime.date.today()
+    today = day.isoformat()
     lines = []
     lines.append("You are a financial research assistant. Visit each link below, extract the key facts, and write a market digest report in Markdown.")
     lines.append("")
@@ -334,33 +335,6 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional
         else:
             label, score = _weighted_sentiment(news)
             lines.append(f"- Sentiment: {label} (weighted, score {score:.2f})")
-
-        # Fundamentals Snapshot (Core + Growth + Debt/Equity)
-        currency = fund.get("currency")
-        market_cap = _format_compact(_get_first_key(fund, ["market_cap", "marketCap"]), currency)
-        revenue = _format_compact(_get_first_key(fund, ["totalRevenue"]), currency)
-        ebitda = _format_compact(_get_first_key(fund, ["ebitda"]), currency)
-        net_income = _format_compact(_get_first_key(fund, ["netIncomeToCommon"]), currency)
-        eps = _format_ratio(_get_first_key(fund, ["trailingEps", "trailing_eps"]))
-        free_cf = _format_compact(_get_first_key(fund, ["freeCashflow"]), currency)
-        shares = _format_compact(_get_first_key(fund, ["sharesOutstanding"]))
-
-        rev_growth = _format_ratio(_get_first_key(fund, ["revenueGrowth"]))
-        earnings_growth = _format_ratio(_get_first_key(fund, ["earningsGrowth"]))
-        debt_equity = _format_ratio(_get_first_key(fund, ["debtToEquity"]))
-
-        lines.append("- Fundamentals (Core):")
-        lines.append(f"  - Market cap: {market_cap}")
-        lines.append(f"  - Revenue (TTM): {revenue}")
-        lines.append(f"  - EBITDA: {ebitda}")
-        lines.append(f"  - Net income: {net_income}")
-        lines.append(f"  - EPS (TTM): {eps}")
-        lines.append(f"  - Free cash flow: {free_cf}")
-        lines.append(f"  - Shares outstanding: {shares}")
-        lines.append("- Fundamentals (Growth):")
-        lines.append(f"  - Revenue growth (YoY): {rev_growth}")
-        lines.append(f"  - Earnings growth (YoY): {earnings_growth}")
-        lines.append(f"- Debt/Equity: {debt_equity}")
 
         # Headlines
         if news:

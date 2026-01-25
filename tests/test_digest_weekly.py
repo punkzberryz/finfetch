@@ -108,9 +108,9 @@ class TestWeeklyDigest(unittest.TestCase):
             self.assertIn("## Market News", content)
             self.assertIn("## Ticker Highlights", content)
             self.assertIn("Sentiment: Positive (weighted", content)
-            self.assertIn("Fundamentals (Core):", content)
-            self.assertIn("Fundamentals (Growth):", content)
-            self.assertIn("Debt/Equity:", content)
+            self.assertNotIn("Fundamentals (Core):", content)
+            self.assertNotIn("Fundamentals (Growth):", content)
+            self.assertNotIn("Debt/Equity:", content)
             self.assertTrue(any(r["scope"] == "market" for r in rows))
             self.assertTrue(any(r["scope"] == "ticker" for r in rows))
 
