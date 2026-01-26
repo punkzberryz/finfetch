@@ -15,6 +15,7 @@ finfetch’s job is to **collect, normalize, cache, and export** data so it can 
 
 - the CLI itself
 - LLM workflows (reading exported files directly, bypassing the CLI if needed)
+- a local UI for running CLI commands and browsing exports
 
 ---
 
@@ -291,6 +292,15 @@ M4 — Finnhub Add-on [DONE]
 - [x] Add Finnhub provider and enrichment options (config/env-based)
 - [x] Optional sentiment features and broader market digest
 
+M5 — Local UI (TanStack Start) [IN PROGRESS]
+
+- [x] Add a React UI in `apps/ui` using TanStack Start + TypeScript
+- [x] Tailwind + shadcn/ui for UI components
+- [x] Add Biome linting (`pnpm lint`) for UI
+- [ ] Node server routes to run `finfetch` CLI commands (any subcommand)
+- [ ] UI shows CLI stdout JSON and reads from `./exports`
+- [ ] Endpoints for commands and export browsing (rich API surface)
+
 ---
 
 ## 10) Open Questions (defer; do not block v0)
@@ -319,3 +329,7 @@ Resolved preferences:
 
 5) Prompt customization
    - Add flags for prompt length or sections (e.g., include “Risks/Catalysts”).
+
+6) UI polish
+   - Add presets for common CLI tasks (fetch/export/digest).
+   - Add friendly renderers for JSON results and markdown exports.
