@@ -286,6 +286,8 @@ M2 — Export Pipeline [DONE]
 M3 — Digest (Weekly/Daily) [DONE]
 
 - [x] Implement cache-only digest generators and a high-level orchestrator
+- [x] Parallelize per-ticker cache hydration (bounded worker pool, configurable workers)
+- [x] Write digest JSON files alongside markdown/CSV/prompt outputs
 
 M4 — Finnhub Add-on [DONE]
 

@@ -1,5 +1,6 @@
 import csv
 import datetime
+import json
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -387,5 +388,120 @@ def generate_weekly_digest(tickers: List[str], out_dir: Path, *, title: Optional
     prompt = _build_prompt(prompt_title, csv_rows)
     with open(prompt_path, "w") as f:
         f.write(prompt)
+
+    def _iso(dt: Any) -> str:
+        if isinstance(dt, datetime.datetime):
+            return dt.isoformat()
+        return ""
+
+    market_snapshot = None
+    if changes:
+        market_snapshot = {
+            "breadth": {"up": up, "down": down},
+            "average_change": avg_change,
+            "best": {"ticker": best[0], "change": best[1].get("change")},
+            "worst": {"ticker": worst[0], "change": worst[1].get("change")},
+        }
+    else:
+        market_snapshot = {"note": "Not enough price data to summarize weekly performance."}
+
+    sector_rotation = []
+    if sector_map:
+        sector_items = []
+        for sector, values in sector_map.items():
+            sector_items.append((sector, sum(values) / len(values)))
+        sector_items.sort(key=lambda x: (-x[1], x[0]))
+        for sector, avg in sector_items:
+            sector_rotation.append({"sector": sector, "average_change": avg})
+
+    top_themes = [{"theme": word, "count": count} for word, count in themes] if themes else []
+
+    market_news_payload = []
+    if include_market_news:
+        market_news = cache.get("finnhub:market_news:general:0") or []
+        market_items = _normalize_news(market_news)
+        for item in market_items[:5]:
+            market_news_payload.append({
+                "title": item.get("title", ""),
+                "source": item.get("source", "Unknown"),
+                "url": item.get("url", ""),
+                "published_at": _iso(item.get("published_at")),
+                "provider": item.get("provider", ""),
+            })
+
+    ticker_highlights = []
+    for ticker in tickers_sorted:
+        data = ticker_data[ticker]
+        fund = data["fundamentals"] or {}
+        news = data["news"]
+
+        sentiment_payload = cache.get(f"finnhub:sentiment:{ticker}:latest") or cache.get(f"finnhub:sentiment:{ticker}")
+        if isinstance(sentiment_payload, dict):
+            sentiment = {
+                "source": "finnhub",
+                "label": sentiment_payload.get("label") or sentiment_payload.get("sentiment") or "Unknown",
+                "score": sentiment_payload.get("score"),
+            }
+        else:
+            label, score = _weighted_sentiment(news)
+            sentiment = {
+                "source": "weighted",
+                "label": label,
+                "score": score,
+            }
+
+        headlines = []
+        risks_catalysts = []
+        if news:
+            for item in news[:3]:
+                title = item.get("title", "No Title")
+                headlines.append({
+                    "title": title,
+                    "source": item.get("source", "Unknown"),
+                    "url": item.get("url", ""),
+                    "published_at": _iso(item.get("published_at")),
+                    "provider": item.get("provider", ""),
+                })
+                tag = _headline_sentiment(title)
+                label = "Catalyst" if tag > 0 else "Risk" if tag < 0 else "Neutral"
+                risks_catalysts.append({"label": label, "title": title})
+
+        ticker_highlights.append({
+            "ticker": ticker,
+            "name": fund.get("name", "Unknown"),
+            "sector": fund.get("sector", "N/A"),
+            "industry": fund.get("industry", "N/A"),
+            "change": data.get("change"),
+            "start_price": data.get("start_price"),
+            "end_price": data.get("end_price"),
+            "sentiment": sentiment,
+            "headlines": headlines,
+            "risks_catalysts": risks_catalysts,
+        })
+
+    json_payload = {
+        "type": "weekly",
+        "date": today_str,
+        "week": f"{year}-W{week:02d}",
+        "title": title or f"# Weekly Market Digest: {year}-W{week:02d}",
+        "tickers": tickers_sorted,
+        "include_market_news": include_market_news,
+        "market_snapshot": market_snapshot,
+        "sector_rotation": sector_rotation,
+        "top_themes": top_themes,
+        "market_news": market_news_payload,
+        "ticker_highlights": ticker_highlights,
+        "news_links": [
+            {
+                **row,
+                "published_at": row.get("published_at") or "",
+            }
+            for row in csv_rows
+        ],
+    }
+
+    json_path = out_dir / f"weekly_{year}-W{week:02d}.json"
+    with open(json_path, "w") as f:
+        json.dump(json_payload, f, indent=2, sort_keys=True)
         
     return out_path

@@ -2,6 +2,8 @@ import sys
 import json
 import click
 import hashlib
+import logging
+import concurrent.futures
 from .errors import format_error, FinFetchError
 from .logging import configure_logging
 from .models.fundamentals import FundamentalsSnapshot
@@ -21,27 +23,40 @@ from pathlib import Path
 # Configure logging at module level
 configure_logging()
 cache = SQLiteCache()
+logger = logging.getLogger(__name__)
 
-def _ensure_cache(tickers, *, include_market_news: bool) -> None:
-    for ticker in tickers:
+def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> None:
+    def _ensure_ticker(ticker: str) -> None:
+        logger.info(f"Ensuring cache for {ticker}")
+
         key_fund = f"yahoo:fundamentals:{ticker}"
         if not cache.get(key_fund):
+            logger.info(f"Fetching fundamentals (Yahoo) for {ticker}")
             data = yahoo.fetch_fundamentals(ticker)
             cache.put(key_fund, data.model_dump(mode="json", by_alias=True))
+        else:
+            logger.info(f"Cache hit: fundamentals (Yahoo) for {ticker}")
 
         key_price = f"yahoo:prices:{ticker}:5d:1d"
         if not cache.get(key_price):
+            logger.info(f"Fetching prices (Yahoo) for {ticker} (5d/1d)")
             bars = yahoo.fetch_prices(ticker, "5d", "1d")
             cache.put(key_price, [b.model_dump(mode="json") for b in bars])
+        else:
+            logger.info(f"Cache hit: prices (Yahoo) for {ticker} (5d/1d)")
 
         key_news = f"yahoo:news:{ticker}:latest"
         if not cache.get(key_news):
+            logger.info(f"Fetching news (Yahoo) for {ticker}")
             items = yahoo.fetch_news(ticker)
             cache.put(key_news, [i.model_dump(mode="json") for i in items])
+        else:
+            logger.info(f"Cache hit: news (Yahoo) for {ticker}")
 
         key_finnhub = f"finnhub:news:{ticker}:latest"
         if not cache.get(key_finnhub):
             try:
+                logger.info(f"Fetching company news (Finnhub) for {ticker}")
                 end_d = date.today()
                 start_d = end_d - timedelta(days=7)
                 items = finnhub.fetch_company_news(ticker, start_d, end_d)
@@ -50,17 +65,29 @@ def _ensure_cache(tickers, *, include_market_news: bool) -> None:
                 pass
             except Exception:
                 pass
+        else:
+            logger.info(f"Cache hit: company news (Finnhub) for {ticker}")
+
+        logger.info(f"Finished cache for {ticker}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_ensure_ticker, ticker) for ticker in tickers]
+        for fut in concurrent.futures.as_completed(futures):
+            fut.result()
 
     if include_market_news:
         key_market = "finnhub:market_news:general:0"
         if not cache.get(key_market):
             try:
+                logger.info("Fetching market news (Finnhub) category=general")
                 items = finnhub.fetch_market_news(category="general", min_id=0)
                 cache.put(key_market, [i.model_dump(mode="json") for i in items])
             except FinFetchError:
                 pass
             except Exception:
                 pass
+        else:
+            logger.info("Cache hit: market news (Finnhub) category=general")
 
 @click.group()
 def cli():
@@ -74,11 +101,16 @@ def cli():
 @click.option("--date", "digest_date", required=False, help="Digest date (YYYY-MM-DD, daily only)")
 @click.option("--portfolio", is_flag=True, help="Use portfolio.yaml (weekly only)")
 @click.option("--out", default="./exports", help="Export root directory")
-def digest(digest_type, digest_date, portfolio, out):
+@click.option("--workers", default=4, show_default=True, type=int, help="Max parallel workers for cache hydration")
+def digest(digest_type, digest_date, portfolio, out, workers):
     """
     High-level digest orchestration.
     Loads tickers from YAML, fetches missing cache data, then generates digest output.
     """
+    logger.info("Starting digest orchestration")
+    if workers < 1:
+        raise click.BadParameter("--workers must be >= 1.")
+
     if portfolio and digest_type != "weekly":
         raise click.BadParameter("--portfolio can only be used with --type weekly.")
 
@@ -95,12 +127,14 @@ def digest(digest_type, digest_date, portfolio, out):
     if portfolio:
         portfolio_data = load_portfolio()
         ticker_list = portfolio_data["tickers"]
+        logger.info(f"Loaded {len(ticker_list)} portfolio tickers")
         title = f"# Portfolio Digest: {portfolio_data['name']} ({date.today().isocalendar()[0]}-W{date.today().isocalendar()[1]:02d})"
         out_dir = Path(out) / "portfolio"
         include_market_news = False
     else:
         market_data = load_market()
         ticker_list = market_data["tickers"]
+        logger.info(f"Loaded {len(ticker_list)} market tickers")
         if digest_type == "weekly":
             title = f"# Market Digest: {market_data['name']} ({date.today().isocalendar()[0]}-W{date.today().isocalendar()[1]:02d})"
         else:
@@ -109,27 +143,32 @@ def digest(digest_type, digest_date, portfolio, out):
         out_dir = Path(out) / "digests"
         include_market_news = True
 
-    _ensure_cache(ticker_list, include_market_news=include_market_news)
+    logger.info(f"Ensuring cache (include_market_news={include_market_news}, workers={workers})")
+    _ensure_cache(ticker_list, include_market_news=include_market_news, max_workers=workers)
 
     if digest_type == "weekly":
+        logger.info("Generating weekly digest")
         report_path = weekly_digest.generate_weekly_digest(
             ticker_list,
             out_dir,
             title=title,
             include_market_news=include_market_news,
         )
+        logger.info(f"Digest written to {report_path}")
         _print_json({
             "digest_file": str(report_path),
             "tickers": ticker_list,
             "type": "weekly",
         })
     else:
+        logger.info("Generating daily digest")
         report_path = daily_digest.generate_daily_digest(
             ticker_list,
             out_dir,
             digest_date=day,
             include_market_news=include_market_news,
         )
+        logger.info(f"Digest written to {report_path}")
         _print_json({
             "digest_file": str(report_path),
             "tickers": ticker_list,

@@ -2,6 +2,7 @@ import requests
 import logging
 import datetime
 import re
+import os
 from typing import List, Optional
 from ..errors import ProviderError
 from ..models.news import NewsItem
@@ -46,10 +47,11 @@ def _resolve_finnhub_link(url: str) -> str:
     # Headless fallback for finnhub redirect pages
     try:
         from playwright.sync_api import sync_playwright  # type: ignore
+        timeout_ms = int(os.getenv("FINFETCH_PLAYWRIGHT_TIMEOUT_MS", "5000"))
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, timeout=timeout_ms)
             page = browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             resolved = page.url
             browser.close()
             if resolved and resolved != url:
