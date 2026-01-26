@@ -44,3 +44,7 @@ Authoritative and non-optional for UI work.
 ## 6) Quality Gates
 
 - Run `pnpm lint` in `apps/ui` after UI code changes.
+
+## 7) User Notifications
+
+- Use `react-toastify` for all transient user feedback (success messages, non-blocking errors, status updates).

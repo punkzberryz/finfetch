@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { toast } from "react-toastify";
 import DailyDigestView from "../components/DailyDigestView";
 import {
 	getLatestDailyDigest,
@@ -20,17 +21,23 @@ function App() {
 
 	const generateMutation = useMutation({
 		mutationFn: () => runDailyDigest({ data: {} }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["daily-digest-latest"] });
+		onSuccess: (data) => {
+			if (data.ok) {
+				toast.success("Daily digest generated successfully!");
+				queryClient.invalidateQueries({ queryKey: ["daily-digest-latest"] });
+			} else {
+				toast.error(
+					`Failed to generate digest: ${data.payload?.error?.message || "Unknown error"}`,
+				);
+			}
+		},
+		onError: (error) => {
+			toast.error(`Error: ${error.message}`);
 		},
 	});
 
 	const latestDigest = digestQuery.data?.found ? digestQuery.data.digest : null;
 	const latestDate = digestQuery.data?.found ? digestQuery.data.date : null;
-	const actionError =
-		generateMutation.data?.ok === false
-			? generateMutation.data.payload?.error?.message
-			: null;
 
 	return (
 		<div className="min-h-screen bg-[#0b0f14] text-white">
@@ -101,11 +108,6 @@ function App() {
 							</p>
 							{digestQuery.isFetching && (
 								<p className="text-xs text-cyan-200">Refreshing digest data…</p>
-							)}
-							{actionError && (
-								<p className="text-xs text-rose-200">
-									Failed to generate digest: {actionError}
-								</p>
 							)}
 						</div>
 					</div>

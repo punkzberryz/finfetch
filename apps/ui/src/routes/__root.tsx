@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { useState } from "react";
+import { ToastContainer } from "react-toastify";
 
 import Header from "../components/Header";
 
 import appCss from "../styles.css?url";
+import toastifyCss from "react-toastify/dist/ReactToastify.css?url";
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -27,6 +29,10 @@ export const Route = createRootRoute({
 				rel: "stylesheet",
 				href: appCss,
 			},
+			{
+				rel: "stylesheet",
+				href: toastifyCss,
+			},
 		],
 	}),
 
@@ -45,6 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<QueryClientProvider client={queryClient}>
 					<Header />
 					{children}
+					<ToastContainer position="top-right" theme="colored" />
 					<TanStackDevtools
 						config={{
 							position: "bottom-right",
