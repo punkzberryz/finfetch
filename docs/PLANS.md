@@ -302,6 +302,7 @@ M5 — Local UI (TanStack Start) [IN PROGRESS]
 - [ ] Node server routes to run `finfetch` CLI commands (any subcommand)
 - [ ] UI shows CLI stdout JSON and reads from `./exports`
 - [ ] Endpoints for commands and export browsing (rich API surface)
+  - [x] Home page renders latest daily digest from `exports/digests` and can trigger daily digest generation
 
 ---
 

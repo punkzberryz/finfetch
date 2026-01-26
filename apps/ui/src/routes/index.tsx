@@ -1,118 +1,131 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import DailyDigestView from "../components/DailyDigestView";
 import {
-  Zap,
-  Server,
-  Route as RouteIcon,
-  Shield,
-  Waves,
-  Sparkles,
-} from 'lucide-react'
+	getLatestDailyDigest,
+	runDailyDigest,
+} from "../lib/daily-digest.server";
+import { formatDateLabel } from "../lib/digest-format";
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute("/")({ component: App });
 
 function App() {
-  const features = [
-    {
-      icon: <Zap className="w-12 h-12 text-cyan-400" />,
-      title: 'Powerful Server Functions',
-      description:
-        'Write server-side code that seamlessly integrates with your client components. Type-safe, secure, and simple.',
-    },
-    {
-      icon: <Server className="w-12 h-12 text-cyan-400" />,
-      title: 'Flexible Server Side Rendering',
-      description:
-        'Full-document SSR, streaming, and progressive enhancement out of the box. Control exactly what renders where.',
-    },
-    {
-      icon: <RouteIcon className="w-12 h-12 text-cyan-400" />,
-      title: 'API Routes',
-      description:
-        'Build type-safe API endpoints alongside your application. No separate backend needed.',
-    },
-    {
-      icon: <Shield className="w-12 h-12 text-cyan-400" />,
-      title: 'Strongly Typed Everything',
-      description:
-        'End-to-end type safety from server to client. Catch errors before they reach production.',
-    },
-    {
-      icon: <Waves className="w-12 h-12 text-cyan-400" />,
-      title: 'Full Streaming Support',
-      description:
-        'Stream data from server to client progressively. Perfect for AI applications and real-time updates.',
-    },
-    {
-      icon: <Sparkles className="w-12 h-12 text-cyan-400" />,
-      title: 'Next Generation Ready',
-      description:
-        'Built from the ground up for modern web applications. Deploy anywhere JavaScript runs.',
-    },
-  ]
+	const queryClient = useQueryClient();
+	const digestQuery = useQuery({
+		queryKey: ["daily-digest-latest"],
+		queryFn: () => getLatestDailyDigest(),
+		refetchOnWindowFocus: false,
+	});
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <section className="relative py-20 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10"></div>
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <img
-              src="/tanstack-circle-logo.png"
-              alt="TanStack Logo"
-              className="w-24 h-24 md:w-32 md:h-32"
-            />
-            <h1 className="text-6xl md:text-7xl font-black text-white [letter-spacing:-0.08em]">
-              <span className="text-gray-300">TANSTACK</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                START
-              </span>
-            </h1>
-          </div>
-          <p className="text-2xl md:text-3xl text-gray-300 mb-4 font-light">
-            The framework for next generation AI applications
-          </p>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto mb-8">
-            Full-stack framework powered by TanStack Router for React and Solid.
-            Build modern applications with server functions, streaming, and type
-            safety.
-          </p>
-          <div className="flex flex-col items-center gap-4">
-            <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Documentation
-            </a>
-            <p className="text-gray-400 text-sm mt-2">
-              Begin your TanStack Start journey by editing{' '}
-              <code className="px-2 py-1 bg-slate-700 rounded text-cyan-400">
-                /src/routes/index.tsx
-              </code>
-            </p>
-          </div>
-        </div>
-      </section>
+	const generateMutation = useMutation({
+		mutationFn: () => runDailyDigest({ data: {} }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["daily-digest-latest"] });
+		},
+	});
 
-      <section className="py-16 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
-            >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-white mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  )
+	const latestDigest = digestQuery.data?.found ? digestQuery.data.digest : null;
+	const latestDate = digestQuery.data?.found ? digestQuery.data.date : null;
+	const actionError =
+		generateMutation.data?.ok === false
+			? generateMutation.data.payload?.error?.message
+			: null;
+
+	return (
+		<div className="min-h-screen bg-[#0b0f14] text-white">
+			<div className="relative overflow-hidden border-b border-white/5">
+				<div className="absolute inset-0">
+					<div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-[140px]" />
+					<div className="absolute right-0 top-10 h-96 w-96 rounded-full bg-emerald-500/10 blur-[160px]" />
+					<div className="absolute bottom-0 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[150px]" />
+				</div>
+				<section className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-16 lg:flex-row lg:items-center">
+					<div className="flex-1 space-y-6">
+						<div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-300">
+							<Sparkles className="h-4 w-4 text-cyan-300" />
+							Finfetch Daily
+						</div>
+						<div className="space-y-4">
+							<h1 className="text-4xl font-semibold leading-tight md:text-6xl">
+								Daily Market Digest
+							</h1>
+							<p className="max-w-xl text-base text-slate-300 md:text-lg">
+								Browse the latest daily digest directly from your local exports.
+								Generate a fresh run when you want the newest headlines.
+							</p>
+						</div>
+						<div className="flex flex-wrap gap-4">
+							<button
+								type="button"
+								onClick={() => generateMutation.mutate()}
+								disabled={generateMutation.isPending}
+								className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+							>
+								{generateMutation.isPending ? (
+									<>
+										<Loader2 className="h-4 w-4 animate-spin" />
+										Generating...
+									</>
+								) : (
+									"Generate Daily Digest"
+								)}
+							</button>
+							<button
+								type="button"
+								onClick={() => digestQuery.refetch()}
+								className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/60 hover:text-cyan-200"
+							>
+								<RefreshCw className="h-4 w-4" />
+								Refresh Latest
+							</button>
+						</div>
+						<div className="text-xs text-slate-500">
+							Output folder:{" "}
+							<span className="text-slate-300">exports/digests</span>
+						</div>
+					</div>
+
+					<div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_30px_120px_-60px_rgba(56,189,248,0.6)]">
+						<h2 className="text-xs uppercase tracking-[0.3em] text-slate-400">
+							Latest Digest
+						</h2>
+						<div className="mt-3 space-y-2">
+							<p className="text-2xl font-semibold text-white">
+								{latestDate ? formatDateLabel(latestDate) : "No digest yet"}
+							</p>
+							<p className="text-sm text-slate-400">
+								{latestDigest
+									? `${latestDigest.tickers.length} tickers • ${latestDigest.market_news.length} market headlines`
+									: "Generate a digest to populate this view."}
+							</p>
+							{digestQuery.isFetching && (
+								<p className="text-xs text-cyan-200">Refreshing digest data…</p>
+							)}
+							{actionError && (
+								<p className="text-xs text-rose-200">
+									Failed to generate digest: {actionError}
+								</p>
+							)}
+						</div>
+					</div>
+				</section>
+			</div>
+
+			<main className="mx-auto w-full max-w-6xl px-6 py-12">
+				{digestQuery.isLoading ? (
+					<div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-sm text-slate-400">
+						Loading the latest digest...
+					</div>
+				) : latestDigest ? (
+					<DailyDigestView digest={latestDigest} />
+				) : (
+					<div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-sm text-slate-400">
+						No daily digest JSON found in <strong>exports/digests</strong>.
+						Generate a new digest to get started.
+					</div>
+				)}
+			</main>
+		</div>
+	);
 }

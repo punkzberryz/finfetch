@@ -1,15 +1,26 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.12/schema.json",
-  "formatter": {
-    "enabled": true
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true
-    }
-  },
-  "files": {
-    "ignore": ["node_modules", "dist"]
-  }
+	"$schema": "https://biomejs.dev/schemas/2.3.12/schema.json",
+	"formatter": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true
+		}
+	},
+	"files": {
+		"includes": [
+			"src/components/DailyDigestView.tsx",
+			"src/lib/**",
+			"src/routes/index.tsx",
+			"src/routes/__root.tsx",
+			"src/styles.css"
+		]
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	}
 }
