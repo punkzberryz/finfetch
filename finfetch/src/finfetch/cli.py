@@ -2,6 +2,7 @@ import sys
 import json
 import click
 import hashlib
+import re
 import logging
 import concurrent.futures
 from .errors import format_error, FinFetchError
@@ -12,8 +13,9 @@ from .models.news import NewsItem
 from .providers import yahoo, finnhub
 from datetime import date, timedelta
 from .cache.sqlite import SQLiteCache
+from .cache.transcripts import TranscriptStore
 from .export.paths import get_export_dir
-from .export import json_export, csv_export, md_export
+from .export import json_export, csv_export, md_export, transcript_export
 from .digest import weekly as weekly_digest
 from .digest import daily as daily_digest
 from .portfolio import load_portfolio
@@ -23,6 +25,7 @@ from pathlib import Path
 # Configure logging at module level
 configure_logging()
 cache = SQLiteCache()
+transcript_store = TranscriptStore()
 logger = logging.getLogger(__name__)
 
 def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> None:
@@ -89,10 +92,53 @@ def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> No
         else:
             logger.info("Cache hit: market news (Finnhub) category=general")
 
+
+_TRANSCRIPT_URL_RE = re.compile(
+    r"^https?://finance\.yahoo\.com/quote/[A-Za-z\.-]+/earnings/.*", re.IGNORECASE
+)
+
+
+def _validate_transcript_url(ctx, param, value):
+    url = (value or "").strip()
+    if not url or not _TRANSCRIPT_URL_RE.match(url):
+        raise click.BadParameter("url must be a Yahoo Finance earnings call transcript link.")
+    return url
+
+
+@click.group()
+def scrape():
+    """Scrape HTML-based sources."""
+    pass
+
+
+@scrape.command("transcript")
+@click.option("--url", "transcript_url", required=True, callback=_validate_transcript_url, help="Yahoo Finance transcript URL")
+@click.option("--out", default="./exports", help="Export root directory")
+@click.option("--force", is_flag=True, help="Re-scrape even if cached")
+def scrape_transcript(transcript_url, out, force):
+    """
+    Scrape a Yahoo Finance earnings call transcript and export JSON + Markdown.
+    """
+    if not force:
+        cached = transcript_store.get(transcript_url)
+        if cached:
+            exports = transcript_export.export_transcript(cached, out_root=out)
+            _print_json({"transcript": cached, "exports": exports}, cached=True)
+            return
+
+    transcript = yahoo.scrape_transcript(transcript_url)
+    transcript_store.upsert(transcript)
+    payload = transcript.model_dump(mode="json", by_alias=True)
+    exports = transcript_export.export_transcript(payload, out_root=out)
+    _print_json({"transcript": payload, "exports": exports}, cached=False)
+
+
 @click.group()
 def cli():
     """finfetch: Financial data fetcher."""
     pass
+
+cli.add_command(scrape)
 
 # ... (omitted)
 

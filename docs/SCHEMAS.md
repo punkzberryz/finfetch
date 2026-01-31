@@ -107,3 +107,41 @@ Same shape as Daily Digest JSON, plus:
     {
       "week": "YYYY-WWW"
     }
+
+---
+
+## 5) Transcript Scrape Output
+
+Command: `finfetch scrape transcript --url <Yahoo transcript URL>`
+
+`stdout` envelope:
+
+    {
+      "ok": true,
+      "data": {
+        "transcript": {
+          "provider": "yahoo",
+          "url": "...",
+          "symbol": "IREN",
+          "company": "Iris Energy Limited",
+          "title": "Iris Energy Limited (IREN) Q1 2026 Earnings Call Transcript",
+          "quarter": "Q1 2026",
+          "event_date": "2026-05-15",
+          "published_at": "2026-05-15T12:00:00+00:00",
+          "speakers": ["Operator", "Daniel Roberts", "Analyst"],
+          "sections": [{ "speaker": "Operator", "role": null, "text": "..." }],
+          "full_text": "...",
+          "raw_html": "<html>...</html>"
+        },
+        "exports": {
+          "json": "./exports/transcripts/IREN/2026-05-15-q1-2026-380008.json",
+          "markdown": "./exports/transcripts/IREN/2026-05-15-q1-2026-380008.md"
+        }
+      },
+      "meta": { "version": 1, "cached": false }
+    }
+
+Notes:
+
+- Markdown and JSON export filenames are deterministic: `{event_date}-{quarter|title_slug}-{id}.(json|md)`.
+- `raw_html` is stored for debugging; downstream exports may ignore it.

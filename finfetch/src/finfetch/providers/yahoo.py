@@ -1,14 +1,18 @@
-import yfinance as yf
+import json
 import logging
 import re
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
 import requests
-from typing import List, Dict, Any, Optional
+import yfinance as yf
+
 from ..errors import ProviderError
 from ..models.fundamentals import FundamentalsSnapshot
-from ..models.prices import PriceBar
 from ..models.news import NewsItem
-from datetime import datetime, date
+from ..models.prices import PriceBar
+from ..models.transcript import Transcript, TranscriptSection
 
 logger = logging.getLogger(__name__)
 
@@ -292,3 +296,237 @@ def fetch_financials(ticker: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to fetch financials for {ticker}: {e}")
         raise ProviderError(f"Yahoo financials failed: {e}")
+
+
+_TRANSCRIPT_UA = "Mozilla/5.0 (finfetch transcript scraper)"
+
+
+def _fetch_transcript_html(url: str) -> str:
+    last_error: Optional[Exception] = None
+    try:
+        resp = requests.get(url, headers={"User-Agent": _TRANSCRIPT_UA}, timeout=15)
+        if resp.status_code < 400:
+            return resp.text
+        last_error = ProviderError(f"Yahoo transcript fetch failed: HTTP {resp.status_code}")
+    except requests.RequestException as exc:
+        logger.error(f"Transcript fetch failed for {url}: {exc}")
+        last_error = ProviderError(f"Yahoo transcript fetch failed: {exc}")
+
+    # Playwright fallback for sites that block non-browser clients
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            response = page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            content = page.content()
+            browser.close()
+
+        if response and response.status >= 400:
+            raise ProviderError(f"Yahoo transcript fetch failed: HTTP {response.status}")
+        if not content:
+            raise ProviderError("Yahoo transcript fetch failed: empty page via Playwright")
+        return content
+    except ImportError:
+        logger.error("Playwright not installed; run `playwright install chromium` to enable fallback.")
+    except Exception as exc:  # pragma: no cover - network / runtime dependent
+        logger.error(f"Playwright transcript fetch failed for {url}: {exc}")
+        last_error = last_error or exc
+
+    raise ProviderError(str(last_error) if last_error else "Yahoo transcript fetch failed")
+
+
+def _extract_ld_json(html_text: str) -> Optional[Dict[str, Any]]:
+    scripts = re.findall(
+        r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>',
+        html_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for raw in scripts:
+        try:
+            data = json.loads(raw.strip())
+        except Exception:
+            continue
+        candidates = data if isinstance(data, list) else [data]
+        for item in candidates:
+            if isinstance(item, dict) and item.get("articleBody"):
+                return item
+    return None
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        cleaned = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(cleaned).date()
+    except Exception:
+        return None
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        cleaned = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(cleaned)
+    except Exception:
+        return None
+
+
+def _parse_quarter(text: str, url: str) -> Optional[str]:
+    for source in (text, url):
+        match = re.search(r"(Q[1-4])[\s-]*(20\d{2})", source or "", flags=re.IGNORECASE)
+        if match:
+            quarter = f"{match.group(1).upper()} {match.group(2)}"
+            return quarter
+    return None
+
+
+def _parse_symbol_company(headline: str, url: str) -> Dict[str, Optional[str]]:
+    symbol = None
+    company = None
+
+    m = re.search(r"\(([^)]+)\)", headline or "")
+    if m:
+        symbol = m.group(1).strip().upper()
+    m2 = re.match(r"(.+?)\s*\(", headline or "")
+    if m2:
+        company = m2.group(1).strip()
+
+    if not symbol:
+        m = re.search(r"/quote/([A-Za-z\.-]+)/", url or "")
+        if m:
+            symbol = m.group(1).upper()
+
+    return {"symbol": symbol, "company": company}
+
+
+def _strip_tags(text: str) -> str:
+    return re.sub(r"<[^>]+>", " ", text)
+
+
+def _looks_like_speaker_header(text: str) -> bool:
+    if not text:
+        return False
+    words = text.split()
+    if len(words) == 0 or len(words) > 6:
+        return False
+    letters = "".join(words)
+    return letters.isalpha()
+
+
+def _parse_speaker_line(line: str) -> Optional[tuple]:
+    if not line:
+        return None
+    raw = line.strip()
+    if len(raw) > 120:
+        return None
+
+    if ":" in raw:
+        head, rest = raw.split(":", 1)
+        head = head.strip()
+        role = None
+        for sep in (" -- ", " - "):
+            if sep in head:
+                head, role = [p.strip() for p in head.split(sep, 1)]
+                break
+        if _looks_like_speaker_header(head):
+            return head, role, rest.strip()
+
+    if _looks_like_speaker_header(raw):
+        return raw, None, None
+    return None
+
+
+def _parse_sections_from_body(body_text: str) -> Dict[str, Any]:
+    lines = [ln.strip() for ln in body_text.splitlines() if ln.strip()]
+    sections: List[Dict[str, str]] = []
+    current_speaker = "Narrator"
+    current_role = None
+    buffer: List[str] = []
+
+    def flush():
+        if buffer:
+            text_block = " ".join(buffer).strip()
+            sections.append(
+                {"speaker": current_speaker, "role": current_role, "text": text_block}
+            )
+
+    for line in lines:
+        speaker_info = _parse_speaker_line(line)
+        if speaker_info:
+            flush()
+            buffer = []
+            current_speaker, current_role, remainder = speaker_info
+            if remainder:
+                buffer.append(remainder)
+            continue
+        buffer.append(line)
+
+    flush()
+
+    speakers: List[str] = []
+    for section in sections:
+        sp = section.get("speaker") or "Narrator"
+        if sp not in speakers:
+            speakers.append(sp)
+
+    full_text = "\n\n".join(sec.get("text", "") for sec in sections if sec.get("text"))
+
+    return {"sections": sections, "speakers": speakers, "full_text": full_text}
+
+
+def _extract_body_from_html(html_text: str) -> Optional[str]:
+    ld_json = _extract_ld_json(html_text)
+    if ld_json and ld_json.get("articleBody"):
+        return ld_json.get("articleBody")
+
+    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html_text, flags=re.IGNORECASE | re.DOTALL)
+    if paragraphs:
+        cleaned = [_strip_tags(p).strip() for p in paragraphs]
+        return "\n".join([p for p in cleaned if p])
+    return None
+
+
+def scrape_transcript(url: str, html_override: Optional[str] = None) -> Transcript:
+    """Scrape and normalize a Yahoo Finance earnings call transcript."""
+    html_text = html_override if html_override is not None else _fetch_transcript_html(url)
+    body_text = _extract_body_from_html(html_text or "")
+    if not body_text:
+        raise ProviderError("Yahoo transcript parse failed: no article body found.")
+
+    ld_json = _extract_ld_json(html_text or "") or {}
+    headline = ld_json.get("headline", "")
+
+    meta = _parse_symbol_company(headline, url)
+    event_date = _parse_iso_date(ld_json.get("datePublished"))
+    quarter = _parse_quarter(headline, url)
+
+    parsed_sections = _parse_sections_from_body(body_text)
+    sections = [
+        TranscriptSection(
+            speaker=sec.get("speaker", "Narrator"),
+            role=sec.get("role"),
+            text=sec.get("text", ""),
+        ).model_dump(mode="json")
+        for sec in parsed_sections["sections"]
+    ]
+
+    transcript = Transcript(
+        provider="yahoo",
+        url=url,
+        symbol=meta.get("symbol"),
+        company=meta.get("company"),
+        title=headline or None,
+        quarter=quarter,
+        event_date=event_date,
+        published_at=_parse_iso_datetime(ld_json.get("datePublished")),
+        speakers=parsed_sections["speakers"],
+        sections=sections,  # type: ignore[arg-type]
+        full_text=parsed_sections["full_text"],
+        raw_html=html_text,
+    )
+
+    return transcript

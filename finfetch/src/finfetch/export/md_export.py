@@ -48,3 +48,43 @@ def export_news_md(data: List[Dict[str, Any]], path: Path):
         
     with open(path, 'w') as f:
         f.write("\n".join(lines))
+
+
+def export_transcript_md(transcript: Dict[str, Any], path: Path):
+    """Export an earnings call transcript to Markdown."""
+    lines: List[str] = []
+    title = transcript.get("title") or "Earnings Call Transcript"
+    lines.append(f"# {title}")
+    lines.append("")
+
+    meta_pairs = [
+        ("Ticker", transcript.get("symbol")),
+        ("Company", transcript.get("company")),
+        ("Quarter", transcript.get("quarter")),
+        ("Event Date", transcript.get("event_date")),
+        ("Source", transcript.get("url")),
+    ]
+    lines.append("## Summary")
+    for label, value in meta_pairs:
+        if value:
+            lines.append(f"- **{label}**: {value}")
+    lines.append("")
+
+    lines.append("## Transcript")
+    for section in transcript.get("sections", []):
+        speaker = section.get("speaker") or "Narrator"
+        role = section.get("role")
+        heading = f"### {speaker}"
+        if role:
+            heading += f" — {role}"
+        lines.append(heading)
+        lines.append("")
+        text = section.get("text", "")
+        lines.append(text)
+        lines.append("")
+
+    lines.append("## Full Text")
+    lines.append(transcript.get("full_text", ""))
+
+    with open(path, "w") as f:
+        f.write("\n".join(lines))
