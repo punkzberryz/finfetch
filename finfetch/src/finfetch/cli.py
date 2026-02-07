@@ -28,12 +28,12 @@ cache = SQLiteCache()
 transcript_store = TranscriptStore()
 logger = logging.getLogger(__name__)
 
-def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> None:
+def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int, force: bool = False) -> None:
     def _ensure_ticker(ticker: str) -> None:
         logger.info(f"Ensuring cache for {ticker}")
 
         key_fund = f"yahoo:fundamentals:{ticker}"
-        if not cache.get(key_fund):
+        if force or not cache.get(key_fund):
             logger.info(f"Fetching fundamentals (Yahoo) for {ticker}")
             data = yahoo.fetch_fundamentals(ticker)
             cache.put(key_fund, data.model_dump(mode="json", by_alias=True))
@@ -41,7 +41,7 @@ def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> No
             logger.info(f"Cache hit: fundamentals (Yahoo) for {ticker}")
 
         key_price = f"yahoo:prices:{ticker}:5d:1d"
-        if not cache.get(key_price):
+        if force or not cache.get(key_price):
             logger.info(f"Fetching prices (Yahoo) for {ticker} (5d/1d)")
             bars = yahoo.fetch_prices(ticker, "5d", "1d")
             cache.put(key_price, [b.model_dump(mode="json") for b in bars])
@@ -49,7 +49,7 @@ def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> No
             logger.info(f"Cache hit: prices (Yahoo) for {ticker} (5d/1d)")
 
         key_news = f"yahoo:news:{ticker}:latest"
-        if not cache.get(key_news):
+        if force or not cache.get(key_news):
             logger.info(f"Fetching news (Yahoo) for {ticker}")
             items = yahoo.fetch_news(ticker)
             cache.put(key_news, [i.model_dump(mode="json") for i in items])
@@ -57,7 +57,7 @@ def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> No
             logger.info(f"Cache hit: news (Yahoo) for {ticker}")
 
         key_finnhub = f"finnhub:news:{ticker}:latest"
-        if not cache.get(key_finnhub):
+        if force or not cache.get(key_finnhub):
             try:
                 logger.info(f"Fetching company news (Finnhub) for {ticker}")
                 end_d = date.today()
@@ -80,7 +80,7 @@ def _ensure_cache(tickers, *, include_market_news: bool, max_workers: int) -> No
 
     if include_market_news:
         key_market = "finnhub:market_news:general:0"
-        if not cache.get(key_market):
+        if force or not cache.get(key_market):
             try:
                 logger.info("Fetching market news (Finnhub) category=general")
                 items = finnhub.fetch_market_news(category="general", min_id=0)
@@ -148,7 +148,8 @@ cli.add_command(scrape)
 @click.option("--portfolio", is_flag=True, help="Use portfolio.yaml (weekly only)")
 @click.option("--out", default="./exports", help="Export root directory")
 @click.option("--workers", default=4, show_default=True, type=int, help="Max parallel workers for cache hydration")
-def digest(digest_type, digest_date, portfolio, out, workers):
+@click.option("--force", is_flag=True, help="Refresh data and overwrite cache")
+def digest(digest_type, digest_date, portfolio, out, workers, force):
     """
     High-level digest orchestration.
     Loads tickers from YAML, fetches missing cache data, then generates digest output.
@@ -189,8 +190,13 @@ def digest(digest_type, digest_date, portfolio, out, workers):
         out_dir = Path(out) / "digests"
         include_market_news = True
 
-    logger.info(f"Ensuring cache (include_market_news={include_market_news}, workers={workers})")
-    _ensure_cache(ticker_list, include_market_news=include_market_news, max_workers=workers)
+    logger.info(f"Ensuring cache (include_market_news={include_market_news}, workers={workers}, force={force})")
+    _ensure_cache(
+        ticker_list,
+        include_market_news=include_market_news,
+        max_workers=workers,
+        force=force,
+    )
 
     if digest_type == "weekly":
         logger.info("Generating weekly digest")
